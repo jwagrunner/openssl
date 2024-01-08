@@ -1343,12 +1343,48 @@ CON_FUNC_RETURN tls_construct_client_hello(SSL_CONNECTION *s, WPACKET *pkt)
         return CON_FUNC_ERROR;
     }
 
+    size_t j, num_groups = 0;
+    const uint16_t *pgroups = NULL;
+    uint16_t curve_id = 0;
+
+    tls1_get_supported_groups(s, &pgroups, &num_groups);
+
+    if (s->s3.group_id != 0) {
+        curve_id = s->s3.group_id;
+    } else {
+        for (j = 0; j < num_groups; j++) {
+            if (!tls_group_allowed(s, pgroups[j], SSL_SECOP_CURVE_SUPPORTED))
+                continue;
+
+            if (!tls_valid_group(s, pgroups[j], TLS1_3_VERSION, TLS1_3_VERSION,
+                                 0, NULL))
+                continue;
+
+            curve_id = pgroups[j];
+            break;
+        }
+    }
+	
+    s->s3.group_id = curve_id;
+	
     /* TLS extensions */
+if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
+   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+   || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
+   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
+   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
+   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+    if (!tls_construct_extensions_normal_serverhello(s, pkt, SSL_EXT_CLIENT_HELLO, NULL, 0)) {
+        /* SSLfatal() already called */
+        return CON_FUNC_ERROR;
+    }
+} else {
     if (!tls_construct_extensions(s, pkt, SSL_EXT_CLIENT_HELLO, NULL, 0)) {
         /* SSLfatal() already called */
         return CON_FUNC_ERROR;
     }
-
+}
     return CON_FUNC_SUCCESS;
 }
 
