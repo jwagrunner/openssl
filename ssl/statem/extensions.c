@@ -55,6 +55,7 @@ static int init_ems(SSL_CONNECTION *s, unsigned int context);
 static int final_ems(SSL_CONNECTION *s, unsigned int context, int sent);
 static int init_psk_kex_modes(SSL_CONNECTION *s, unsigned int context);
 static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent);
+static int final_key_share_pqc(SSL_CONNECTION *s, unsigned int context, int sent);
 #ifndef OPENSSL_NO_SRTP
 static int init_srtp(SSL_CONNECTION *s, unsigned int context);
 #endif
@@ -367,6 +368,15 @@ static const EXTENSION_DEFINITION ext_defs[] = {
         final_key_share
     },
     {
+        TLSEXT_TYPE_key_share_pqc,
+        SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_SERVER_HELLO
+        | SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST | SSL_EXT_TLS_IMPLEMENTATION_ONLY
+        | SSL_EXT_TLS1_3_ONLY,
+        NULL, tls_parse_ctos_key_share_pqc, tls_parse_stoc_key_share_pqc,
+        tls_construct_stoc_key_share_pqc, tls_construct_ctos_key_share_pqc,
+        final_key_share_pqc
+    },
+    {
         /* Must be after key_share */
         TLSEXT_TYPE_cookie,
         SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
@@ -635,11 +645,22 @@ int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
         PACKET extension;
         RAW_EXTENSION *thisex;
 
-        if (!PACKET_get_net_2(&extensions, &type) ||
-            !PACKET_get_length_prefixed_2(&extensions, &extension)) {
-            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
-            goto err;
+        if (!PACKET_get_net_2(&extensions, &type)) {
+             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+             goto err;  
         }
+        if (type == TLSEXT_TYPE_key_share_pqc) {
+             if (!PACKET_get_length_prefixed_3(&extensions, &extension)) {
+                  SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                  goto err;
+             }
+        } 
+	      else {
+	            if (!PACKET_get_length_prefixed_2(&extensions, &extension)) {
+                   SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_BAD_EXTENSION);
+                   goto err;
+              }
+	      }
         /*
          * Verify this extension is allowed. We only check duplicates for
          * extensions that we recognise. We also have a special case for the
@@ -924,6 +945,87 @@ int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
 
     return 1;
 }
+
+int tls_construct_extensions_normal_serverhello(SSL_CONNECTION *s, WPACKET *pkt,
+                             unsigned int context,
+                             X509 *x, size_t chainidx)
+{
+    size_t i;
+    int min_version, max_version = 0, reason;
+    const EXTENSION_DEFINITION *thisexd;
+    int for_comp = (context & SSL_EXT_TLS1_3_CERTIFICATE_COMPRESSION) != 0;
+
+    if (!WPACKET_start_sub_packet_u24(pkt)
+               /*
+                * If extensions are of zero length then we don't even add the
+                * extensions length bytes to a ClientHello/ServerHello
+                * (for non-TLSv1.3).
+                */
+            || ((context &
+                 (SSL_EXT_CLIENT_HELLO | SSL_EXT_TLS1_2_SERVER_HELLO)) != 0
+                && !WPACKET_set_flags(pkt,
+                                      WPACKET_FLAGS_ABANDON_ON_ZERO_LENGTH))) {
+        if (!for_comp)
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if ((context & SSL_EXT_CLIENT_HELLO) != 0) {
+        reason = ssl_get_min_max_version(s, &min_version, &max_version, NULL);
+        if (reason != 0) {
+            if (!for_comp)
+                SSLfatal(s, SSL_AD_INTERNAL_ERROR, reason);
+            return 0;
+        }
+    }
+
+    /* Add custom extensions first */
+    if ((context & SSL_EXT_CLIENT_HELLO) != 0) {
+        /* On the server side with initialise during ClientHello parsing */
+        custom_ext_init(&s->cert->custext);
+    }
+    if (!custom_ext_add(s, context, pkt, x, chainidx, max_version)) {
+        /* SSLfatal() already called */
+        return 0;
+    }
+
+    for (i = 0, thisexd = ext_defs; i < OSSL_NELEM(ext_defs); i++, thisexd++) {
+        EXT_RETURN (*construct)(SSL_CONNECTION *s, WPACKET *pkt,
+                                unsigned int context,
+                                X509 *x, size_t chainidx);
+        EXT_RETURN ret;
+
+        /* Skip if not relevant for our context */
+        if (!should_add_extension(s, thisexd->context, context, max_version))
+            continue;
+
+        construct = s->server ? thisexd->construct_stoc
+                              : thisexd->construct_ctos;
+
+        if (construct == NULL)
+            continue;
+
+        ret = construct(s, pkt, context, x, chainidx);
+        if (ret == EXT_RETURN_FAIL) {
+            /* SSLfatal() already called */
+            return 0;
+        }
+        if (ret == EXT_RETURN_SENT
+                && (context & (SSL_EXT_CLIENT_HELLO
+                               | SSL_EXT_TLS1_3_CERTIFICATE_REQUEST
+                               | SSL_EXT_TLS1_3_NEW_SESSION_TICKET)) != 0)
+            s->ext.extflags[i] |= SSL_EXT_FLAG_SENT;
+    }
+
+    if (!WPACKET_close(pkt)) {
+        if (!for_comp)
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    return 1;
+}
+
 
 /*
  * Built in extension finalisation and initialisation functions. All initialise
@@ -1348,6 +1450,190 @@ static int final_sig_algs(SSL_CONNECTION *s, unsigned int context, int sent)
 
 static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
 {
+  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
+   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+   || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
+   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
+   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
+   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+	    return 1;
+   }
+#if !defined(OPENSSL_NO_TLS1_3)
+    if (!SSL_CONNECTION_IS_TLS13(s))
+        return 1;
+
+    /* Nothing to do for key_share in an HRR */
+    if ((context & SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST) != 0)
+        return 1;
+
+    /*
+     * If
+     *     we are a client
+     *     AND
+     *     we have no key_share
+     *     AND
+     *     (we are not resuming
+     *      OR the kex_mode doesn't allow non key_share resumes)
+     * THEN
+     *     fail;
+     */
+    if (!s->server
+            && !sent
+            && (!s->hit
+                || (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE) == 0)) {
+        /* Nothing left we can do - just fail */
+        SSLfatal(s, SSL_AD_MISSING_EXTENSION, SSL_R_NO_SUITABLE_KEY_SHARE);
+        return 0;
+    }
+    /*
+     * IF
+     *     we are a server
+     * THEN
+     *     IF
+     *         we have a suitable key_share
+     *     THEN
+     *         IF
+     *             we are stateless AND we have no cookie
+     *         THEN
+     *             send a HelloRetryRequest
+     *     ELSE
+     *         IF
+     *             we didn't already send a HelloRetryRequest
+     *             AND
+     *             the client sent a key_share extension
+     *             AND
+     *             (we are not resuming
+     *              OR the kex_mode allows key_share resumes)
+     *             AND
+     *             a shared group exists
+     *         THEN
+     *             send a HelloRetryRequest
+     *         ELSE IF
+     *             we are not resuming
+     *             OR
+     *             the kex_mode doesn't allow non key_share resumes
+     *         THEN
+     *             fail
+     *         ELSE IF
+     *             we are stateless AND we have no cookie
+     *         THEN
+     *             send a HelloRetryRequest
+     */
+    if (s->server) {
+        if (s->s3.peer_tmp != NULL) {
+            /* We have a suitable key_share */
+            if ((s->s3.flags & TLS1_FLAGS_STATELESS) != 0
+                    && !s->ext.cookieok) {
+                if (!ossl_assert(s->hello_retry_request == SSL_HRR_NONE)) {
+                    /*
+                     * If we are stateless then we wouldn't know about any
+                     * previously sent HRR - so how can this be anything other
+                     * than 0?
+                     */
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+                s->hello_retry_request = SSL_HRR_PENDING;
+                return 1;
+            }
+        } else {
+            /* No suitable key_share */
+            if (s->hello_retry_request == SSL_HRR_NONE && sent
+                    && (!s->hit
+                        || (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE)
+                           != 0)) {
+                const uint16_t *pgroups, *clntgroups;
+                size_t num_groups, clnt_num_groups, i;
+                unsigned int group_id = 0;
+
+                /* Check if a shared group exists */
+
+                /* Get the clients list of supported groups. */
+                tls1_get_peer_groups(s, &clntgroups, &clnt_num_groups);
+                tls1_get_supported_groups(s, &pgroups, &num_groups);
+
+                /*
+                 * Find the first group we allow that is also in client's list
+                 */
+                for (i = 0; i < num_groups; i++) {
+                    group_id = pgroups[i];
+
+                    if (check_in_list(s, group_id, clntgroups, clnt_num_groups,
+                                      1)
+                            && tls_group_allowed(s, group_id,
+                                                 SSL_SECOP_CURVE_SUPPORTED)
+                            && tls_valid_group(s, group_id, TLS1_3_VERSION,
+                                               TLS1_3_VERSION, 0, NULL))
+                        break;
+                }
+
+                if (i < num_groups) {
+                    /* A shared group exists so send a HelloRetryRequest */
+                    s->s3.group_id = group_id;
+                    s->hello_retry_request = SSL_HRR_PENDING;
+                    return 1;
+                }
+            }
+            if (!s->hit
+                    || (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE) == 0) {
+                /* Nothing left we can do - just fail */
+                SSLfatal(s, sent ? SSL_AD_HANDSHAKE_FAILURE
+                                 : SSL_AD_MISSING_EXTENSION,
+                         SSL_R_NO_SUITABLE_KEY_SHARE);
+                return 0;
+            }
+
+            if ((s->s3.flags & TLS1_FLAGS_STATELESS) != 0
+                    && !s->ext.cookieok) {
+                if (!ossl_assert(s->hello_retry_request == SSL_HRR_NONE)) {
+                    /*
+                     * If we are stateless then we wouldn't know about any
+                     * previously sent HRR - so how can this be anything other
+                     * than 0?
+                     */
+                    SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+                    return 0;
+                }
+                s->hello_retry_request = SSL_HRR_PENDING;
+                return 1;
+            }
+        }
+
+        /*
+         * We have a key_share so don't send any more HelloRetryRequest
+         * messages
+         */
+        if (s->hello_retry_request == SSL_HRR_PENDING)
+            s->hello_retry_request = SSL_HRR_COMPLETE;
+    } else {
+        /*
+         * For a client side resumption with no key_share we need to generate
+         * the handshake secret (otherwise this is done during key_share
+         * processing).
+         */
+        if (!sent && !tls13_generate_handshake_secret(s, NULL, 0)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+    }
+#endif /* !defined(OPENSSL_NO_TLS1_3) */
+    return 1;
+}
+
+static int final_key_share_pqc(SSL_CONNECTION *s, unsigned int context, int sent)
+{
+  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
+   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+   || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
+   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
+   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
+   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+	     printf("              Calling final_key_share_pqc\n");
+   } else {
+	    return 1;
+    }
 #if !defined(OPENSSL_NO_TLS1_3)
     if (!SSL_CONNECTION_IS_TLS13(s))
         return 1;
