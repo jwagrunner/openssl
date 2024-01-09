@@ -270,6 +270,9 @@ __owur int should_add_extension(SSL_CONNECTION *s, unsigned int extctx,
 __owur int tls_construct_extensions(SSL_CONNECTION *s, WPACKET *pkt,
                                     unsigned int context,
                                     X509 *x, size_t chainidx);
+__owur int tls_construct_extensions_normal_serverhello(SSL_CONNECTION *s, WPACKET *pkt,
+                                    unsigned int context,
+                                    X509 *x, size_t chainidx);
 
 __owur int tls_psk_do_binder(SSL_CONNECTION *s, const EVP_MD *md,
                              const unsigned char *msgstart,
@@ -326,6 +329,8 @@ int tls_parse_ctos_use_srtp(SSL_CONNECTION *s, PACKET *pkt,
 int tls_parse_ctos_etm(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                        X509 *x, size_t chainidx);
 int tls_parse_ctos_key_share(SSL_CONNECTION *s, PACKET *pkt,
+                             unsigned int context, X509 *x, size_t chainidx);
+int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
                              unsigned int context, X509 *x, size_t chainidx);
 int tls_parse_ctos_cookie(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                           X509 *x, size_t chainidx);
@@ -389,6 +394,9 @@ EXT_RETURN tls_construct_stoc_supported_versions(SSL_CONNECTION *s, WPACKET *pkt
                                                  unsigned int context, X509 *x,
                                                  size_t chainidx);
 EXT_RETURN tls_construct_stoc_key_share(SSL_CONNECTION *s, WPACKET *pkt,
+                                        unsigned int context, X509 *x,
+                                        size_t chainidx);
+EXT_RETURN tls_construct_stoc_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
                                         unsigned int context, X509 *x,
                                         size_t chainidx);
 EXT_RETURN tls_construct_stoc_cookie(SSL_CONNECTION *s, WPACKET *pkt,
@@ -472,6 +480,9 @@ EXT_RETURN tls_construct_ctos_supported_versions(SSL_CONNECTION *s, WPACKET *pkt
 EXT_RETURN tls_construct_ctos_key_share(SSL_CONNECTION *s, WPACKET *pkt,
                                         unsigned int context, X509 *x,
                                         size_t chainidx);
+EXT_RETURN tls_construct_ctos_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
+                                        unsigned int context, X509 *x,
+                                        size_t chainidx);
 EXT_RETURN tls_construct_ctos_psk_kex_modes(SSL_CONNECTION *s, WPACKET *pkt,
                                             unsigned int context, X509 *x,
                                             size_t chainidx);
@@ -533,6 +544,8 @@ int tls_parse_stoc_supported_versions(SSL_CONNECTION *s, PACKET *pkt,
                                       unsigned int context,
                                       X509 *x, size_t chainidx);
 int tls_parse_stoc_key_share(SSL_CONNECTION *s, PACKET *pkt,
+                             unsigned int context, X509 *x, size_t chainidx);
+int tls_parse_stoc_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
                              unsigned int context, X509 *x, size_t chainidx);
 int tls_parse_stoc_cookie(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,
                           X509 *x, size_t chainidx);
