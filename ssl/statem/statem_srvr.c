@@ -2478,7 +2478,7 @@ if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.grou
    || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
    || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
    || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F))) {
     if (!tls_construct_extensions_normal_serverhello(s, pkt,
                                   s->hello_retry_request == SSL_HRR_PENDING
                                       ? SSL_EXT_TLS1_3_HELLO_RETRY_REQUEST
@@ -2883,7 +2883,7 @@ if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.grou
    || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
    || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
    || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F))) {
         if (!tls_construct_extensions_normal_serverhello(s, pkt,
                                       SSL_EXT_TLS1_3_CERTIFICATE_REQUEST, NULL,
                                       0)) {
