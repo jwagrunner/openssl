@@ -654,6 +654,148 @@ int tls_parse_ctos_key_share(SSL_CONNECTION *s, PACKET *pkt,
             return 0;
         }
 
+        if (((group_id) == 0x024D) || ((group_id) == 0x024E) || ((group_id) == 0x024F) || ((group_id) == 0x0239)
+   || ((group_id) == 0x0244) || ((group_id) == 0x0245) || ((group_id) == 0x0246) || ((group_id) == 0x0247) 
+   || ((group_id) == 0x0248) || ((group_id) == 0x0249) || ((group_id) == 0x024A) || ((group_id) == 0x024B) 
+   || ((group_id) == 0x024C) || ((group_id) == 0x2F50) || ((group_id) == 0x2F51) || ((group_id) == 0x2F52) 
+   || ((group_id) == 0x2F53) || ((group_id) == 0x2F54) || ((group_id) == 0x2F55) || ((group_id) == 0x2F56) 
+   || ((group_id) == 0x2F57) || ((group_id) == 0x2F58) || ((group_id) == 0x2F59) || ((group_id) == 0x2F4D) 
+   || ((group_id) == 0x2F4E) || ((group_id) == 0x2F4F)) {
+          return EXT_RETURN_SENT;
+       } else {
+          printf("tls_parse_ctos_key_share will continue to execute\n");
+       }
+
+        /*
+         * If we already found a suitable key_share we loop through the
+         * rest to verify the structure, but don't process them.
+         */
+        if (found)
+            continue;
+
+        /*
+         * If we sent an HRR then the key_share sent back MUST be for the group
+         * we requested, and must be the only key_share sent.
+         */
+        if (s->s3.group_id != 0
+                && (group_id != s->s3.group_id
+                    || PACKET_remaining(&key_share_list) != 0)) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+            return 0;
+        }
+
+        /* Check if this share is in supported_groups sent from client */
+        if (!check_in_list(s, group_id, clntgroups, clnt_num_groups, 0)) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+            return 0;
+        }
+
+        /* Check if this share is for a group we can use */
+        if (!check_in_list(s, group_id, srvrgroups, srvr_num_groups, 1)
+                || !tls_group_allowed(s, group_id, SSL_SECOP_CURVE_SUPPORTED)
+                   /*
+                    * We tolerate but ignore a group id that we don't think is
+                    * suitable for TLSv1.3
+                    */
+                || !tls_valid_group(s, group_id, TLS1_3_VERSION, TLS1_3_VERSION,
+                                    0, NULL)) {
+            /* Share not suitable */
+            continue;
+        }
+
+        s->s3.group_id = group_id;
+        /* Cache the selected group ID in the SSL_SESSION */
+        s->session->kex_group = group_id;
+
+        if ((s->s3.peer_tmp = ssl_generate_param_group(s, group_id)) == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR,
+                   SSL_R_UNABLE_TO_FIND_ECDH_PARAMETERS);
+            return 0;
+        }
+
+        if (tls13_set_encoded_pub_key(s->s3.peer_tmp,
+                                      PACKET_data(&encoded_pt),
+                                      PACKET_remaining(&encoded_pt)) <= 0) {
+            SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_ECPOINT);
+            return 0;
+        }
+
+        found = 1;
+    }
+#endif
+
+    return 1;
+}
+
+int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
+                             unsigned int context, X509 *x, size_t chainidx)
+{
+#ifndef OPENSSL_NO_TLS1_3
+    unsigned int group_id;
+    PACKET key_share_list, encoded_pt;
+    const uint16_t *clntgroups, *srvrgroups;
+    size_t clnt_num_groups, srvr_num_groups;
+    int found = 0;
+
+    if (s->hit && (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE) == 0)
+        return 1;
+
+    /* Sanity check */
+    if (s->s3.peer_tmp != NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return 0;
+    }
+
+    if (!PACKET_as_length_prefixed_2(pkt, &key_share_list)) {
+        SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
+        return 0;
+    }
+
+    /* Get our list of supported groups */
+    tls1_get_supported_groups(s, &srvrgroups, &srvr_num_groups);
+    /* Get the clients list of supported groups. */
+    tls1_get_peer_groups(s, &clntgroups, &clnt_num_groups);
+    if (clnt_num_groups == 0) {
+        /*
+         * This can only happen if the supported_groups extension was not sent,
+         * because we verify that the length is non-zero when we process that
+         * extension.
+         */
+        SSLfatal(s, SSL_AD_MISSING_EXTENSION,
+                 SSL_R_MISSING_SUPPORTED_GROUPS_EXTENSION);
+        return 0;
+    }
+
+    if (s->s3.group_id != 0 && PACKET_remaining(&key_share_list) == 0) {
+        /*
+         * If we set a group_id already, then we must have sent an HRR
+         * requesting a new key_share. If we haven't got one then that is an
+         * error
+         */
+        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
+        return 0;
+    }
+
+    while (PACKET_remaining(&key_share_list) > 0) {
+        if (!PACKET_get_net_2(&key_share_list, &group_id)
+                || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
+                || PACKET_remaining(&encoded_pt) == 0) {
+            SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
+            return 0;
+        }
+
+        if (((group_id) == 0x024D) || ((group_id) == 0x024E) || ((group_id) == 0x024F) || ((group_id) == 0x0239)
+   || ((group_id) == 0x0244) || ((group_id) == 0x0245) || ((group_id) == 0x0246) || ((group_id) == 0x0247) 
+   || ((group_id) == 0x0248) || ((group_id) == 0x0249) || ((group_id) == 0x024A) || ((group_id) == 0x024B) 
+   || ((group_id) == 0x024C) || ((group_id) == 0x2F50) || ((group_id) == 0x2F51) || ((group_id) == 0x2F52) 
+   || ((group_id) == 0x2F53) || ((group_id) == 0x2F54) || ((group_id) == 0x2F55) || ((group_id) == 0x2F56) 
+   || ((group_id) == 0x2F57) || ((group_id) == 0x2F58) || ((group_id) == 0x2F59) || ((group_id) == 0x2F4D) 
+   || ((group_id) == 0x2F4E) || ((group_id) == 0x2F4F)) {
+          printf("tls_parse_ctos_key_share_pqc will continue to execute\n");
+       } else {
+          return EXT_RETURN_SENT;
+       }
+
         /*
          * If we already found a suitable key_share we loop through the
          * rest to verify the structure, but don't process them.
@@ -1631,6 +1773,164 @@ EXT_RETURN tls_construct_stoc_key_share(SSL_CONNECTION *s, WPACKET *pkt,
                                         size_t chainidx)
 {
 #ifndef OPENSSL_NO_TLS1_3
+    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
+   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+   || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
+   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
+   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
+   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+       return EXT_RETURN_SENT;
+    } else {
+       printf("tls_construct_stoc_key_share will now execute since this is a not a Classic McEliece/RLCE (nor a nid_hybrid of either one) key exchange algorithm.\n");
+    }
+    unsigned char *encodedPoint;
+    size_t encoded_pt_len = 0;
+    EVP_PKEY *ckey = s->s3.peer_tmp, *skey = NULL;
+    const TLS_GROUP_INFO *ginf = NULL;
+
+    if (s->hello_retry_request == SSL_HRR_PENDING) {
+        if (ckey != NULL) {
+            /* Original key_share was acceptable so don't ask for another one */
+            return EXT_RETURN_NOT_SENT;
+        }
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+                || !WPACKET_start_sub_packet_u16(pkt)
+                || !WPACKET_put_bytes_u16(pkt, s->s3.group_id)
+                || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+
+        return EXT_RETURN_SENT;
+    }
+
+    if (ckey == NULL) {
+        /* No key_share received from client - must be resuming */
+        if (!s->hit || !tls13_generate_handshake_secret(s, NULL, 0)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return EXT_RETURN_FAIL;
+        }
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (s->hit && (s->ext.psk_kex_mode & TLSEXT_KEX_MODE_FLAG_KE_DHE) == 0) {
+        /*
+         * PSK ('hit') and explicitly not doing DHE. If the client sent the
+         * DHE option, we take it by default, except if non-DHE would be
+         * preferred by config, but this case would have been handled in
+         * tls_parse_ctos_psk_kex_modes().
+         */
+        return EXT_RETURN_NOT_SENT;
+    }
+
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+            || !WPACKET_start_sub_packet_u16(pkt)
+            || !WPACKET_put_bytes_u16(pkt, s->s3.group_id)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    if ((ginf = tls1_group_id_lookup(SSL_CONNECTION_GET_CTX(s),
+                                     s->s3.group_id)) == NULL) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    if (!ginf->is_kem) {
+        /* Regular KEX */
+        skey = ssl_generate_pkey(s, ckey);
+        if (skey == NULL) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_SSL_LIB);
+            return EXT_RETURN_FAIL;
+        }
+
+        /* Generate encoding of server key */
+        encoded_pt_len = EVP_PKEY_get1_encoded_public_key(skey, &encodedPoint);
+        if (encoded_pt_len == 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EC_LIB);
+            EVP_PKEY_free(skey);
+            return EXT_RETURN_FAIL;
+        }
+
+        if (!WPACKET_sub_memcpy_u16(pkt, encodedPoint, encoded_pt_len)
+                || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            EVP_PKEY_free(skey);
+            OPENSSL_free(encodedPoint);
+            return EXT_RETURN_FAIL;
+        }
+        OPENSSL_free(encodedPoint);
+
+        /*
+         * This causes the crypto state to be updated based on the derived keys
+         */
+        s->s3.tmp.pkey = skey;
+        if (ssl_derive(s, skey, ckey, 1) == 0) {
+            /* SSLfatal() already called */
+            return EXT_RETURN_FAIL;
+        }
+    } else {
+        /* KEM mode */
+        unsigned char *ct = NULL;
+        size_t ctlen = 0;
+
+        /*
+         * This does not update the crypto state.
+         *
+         * The generated pms is stored in `s->s3.tmp.pms` to be later used via
+         * ssl_gensecret().
+         */
+        if (ssl_encapsulate(s, ckey, &ct, &ctlen, 0) == 0) {
+            /* SSLfatal() already called */
+            return EXT_RETURN_FAIL;
+        }
+
+        if (ctlen == 0) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            OPENSSL_free(ct);
+            return EXT_RETURN_FAIL;
+        }
+
+        if (!WPACKET_sub_memcpy_u16(pkt, ct, ctlen)
+                || !WPACKET_close(pkt)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            OPENSSL_free(ct);
+            return EXT_RETURN_FAIL;
+        }
+        OPENSSL_free(ct);
+
+        /*
+         * This causes the crypto state to be updated based on the generated pms
+         */
+        if (ssl_gensecret(s, s->s3.tmp.pms, s->s3.tmp.pmslen) == 0) {
+            /* SSLfatal() already called */
+            return EXT_RETURN_FAIL;
+        }
+    }
+    s->s3.did_kex = 1;
+    return EXT_RETURN_SENT;
+#else
+    return EXT_RETURN_FAIL;
+#endif
+}
+
+EXT_RETURN tls_construct_stoc_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
+                                        unsigned int context, X509 *x,
+                                        size_t chainidx)
+{
+#ifndef OPENSSL_NO_TLS1_3
+    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
+   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+   || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
+   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
+   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
+   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
+   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+      printf("tls_construct_stoc_key_share_pqc will now execute since this is a Classic McEliece/RLCE (or a nid_hybrid of either one) key exchange algorithm.\n");
+    } else {
+      return EXT_RETURN_SENT;
+    }
     unsigned char *encodedPoint;
     size_t encoded_pt_len = 0;
     EVP_PKEY *ckey = s->s3.peer_tmp, *skey = NULL;
