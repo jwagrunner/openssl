@@ -702,6 +702,7 @@ typedef enum tlsext_index_en {
     TLSEXT_IDX_supported_versions,
     TLSEXT_IDX_psk_kex_modes,
     TLSEXT_IDX_key_share,
+    TLSEXT_IDX_key_share_pqc,
     TLSEXT_IDX_cookie,
     TLSEXT_IDX_cryptopro_bug,
     TLSEXT_IDX_compress_certificate,
