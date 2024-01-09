@@ -655,6 +655,63 @@ static int add_key_share(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
 }
 #endif
 
+#ifndef OPENSSL_NO_TLS1_3
+static int add_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt, unsigned int curve_id)
+{
+    unsigned char *encoded_point = NULL;
+    EVP_PKEY *key_share_key = NULL;
+    size_t encodedlen;
+
+    if (s->s3.tmp.pkey != NULL) {
+        if (!ossl_assert(s->hello_retry_request == SSL_HRR_PENDING)) {
+            SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+            return 0;
+        }
+        /*
+         * Could happen if we got an HRR that wasn't requesting a new key_share
+         */
+        key_share_key = s->s3.tmp.pkey;
+    } else {
+        key_share_key = ssl_generate_pkey_group(s, curve_id);
+        if (key_share_key == NULL) {
+            /* SSLfatal() already called */
+            return 0;
+        }
+    }
+
+    /* Encode the public key. */
+    encodedlen = EVP_PKEY_get1_encoded_public_key(key_share_key,
+                                                  &encoded_point);
+    if (encodedlen == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_EC_LIB);
+        goto err;
+    }
+
+    /* Create KeyShareEntry */
+    if (!WPACKET_put_bytes_u16(pkt, curve_id)
+            || !WPACKET_sub_memcpy_u24(pkt, encoded_point, encodedlen)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        goto err;
+    }
+
+    /*
+     * When changing to send more than one key_share we're
+     * going to need to be able to save more than one EVP_PKEY. For now
+     * we reuse the existing tmp.pkey
+     */
+    s->s3.tmp.pkey = key_share_key;
+    s->s3.group_id = curve_id;
+    OPENSSL_free(encoded_point);
+
+    return 1;
+ err:
+    if (s->s3.tmp.pkey == NULL)
+        EVP_PKEY_free(key_share_key);
+    OPENSSL_free(encoded_point);
+    return 0;
+}
+#endif
+
 EXT_RETURN tls_construct_ctos_key_share(SSL_CONNECTION *s, WPACKET *pkt,
                                         unsigned int context, X509 *x,
                                         size_t chainidx)
@@ -663,16 +720,6 @@ EXT_RETURN tls_construct_ctos_key_share(SSL_CONNECTION *s, WPACKET *pkt,
     size_t i, num_groups = 0;
     const uint16_t *pgroups = NULL;
     uint16_t curve_id = 0;
-
-    /* key_share extension */
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
-               /* Extension data sub-packet */
-            || !WPACKET_start_sub_packet_u16(pkt)
-               /* KeyShare list sub-packet */
-            || !WPACKET_start_sub_packet_u16(pkt)) {
-        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
-        return EXT_RETURN_FAIL;
-    }
 
     tls1_get_supported_groups(s, &pgroups, &num_groups);
 
@@ -696,12 +743,107 @@ EXT_RETURN tls_construct_ctos_key_share(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 
+    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0239)
+   || ((curve_id) == 0x0244) || ((curve_id) == 0x0245) || ((curve_id) == 0x0246) || ((curve_id) == 0x0247) 
+   || ((curve_id) == 0x0248) || ((curve_id) == 0x0249) || ((curve_id) == 0x024A) || ((curve_id) == 0x024B) 
+   || ((curve_id) == 0x024C) || ((curve_id) == 0x2F50) || ((curve_id) == 0x2F51) || ((curve_id) == 0x2F52) 
+   || ((curve_id) == 0x2F53) || ((curve_id) == 0x2F54) || ((curve_id) == 0x2F55) || ((curve_id) == 0x2F56) 
+   || ((curve_id) == 0x2F57) || ((curve_id) == 0x2F58) || ((curve_id) == 0x2F59) || ((curve_id) == 0x2F4D) 
+   || ((curve_id) == 0x2F4E) || ((curve_id) == 0x2F4F)) {
+      return EXT_RETURN_SENT;
+   } else {
+      printf("This is neither RLCE nor Classic McEliece, so a regular key share extension is constructed.\n");
+   }
+
+    /* key_share extension */
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+               /* Extension data sub-packet */
+            || !WPACKET_start_sub_packet_u16(pkt)
+               /* KeyShare list sub-packet */
+            || !WPACKET_start_sub_packet_u16(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
     if (curve_id == 0) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_NO_SUITABLE_KEY_SHARE);
         return EXT_RETURN_FAIL;
     }
 
     if (!add_key_share(s, pkt, curve_id)) {
+        /* SSLfatal() already called */
+        return EXT_RETURN_FAIL;
+    }
+
+    if (!WPACKET_close(pkt) || !WPACKET_close(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+    return EXT_RETURN_SENT;
+#else
+    return EXT_RETURN_NOT_SENT;
+#endif
+}
+
+EXT_RETURN tls_construct_ctos_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
+                                        unsigned int context, X509 *x,
+                                        size_t chainidx)
+{
+#ifndef OPENSSL_NO_TLS1_3
+    size_t i, num_groups = 0;
+    const uint16_t *pgroups = NULL;
+    uint16_t curve_id = 0;
+
+    tls1_get_supported_groups(s, &pgroups, &num_groups);
+
+    /*
+     * Make the number of key_shares sent configurable. For
+     * now, we just send one
+     */
+    if (s->s3.group_id != 0) {
+        curve_id = s->s3.group_id;
+    } else {
+        for (i = 0; i < num_groups; i++) {
+            if (!tls_group_allowed(s, pgroups[i], SSL_SECOP_CURVE_SUPPORTED))
+                continue;
+
+            if (!tls_valid_group(s, pgroups[i], TLS1_3_VERSION, TLS1_3_VERSION,
+                                 0, NULL))
+                continue;
+
+            curve_id = pgroups[i];
+            break;
+        }
+    }
+
+    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0239)
+   || ((curve_id) == 0x0244) || ((curve_id) == 0x0245) || ((curve_id) == 0x0246) || ((curve_id) == 0x0247) 
+   || ((curve_id) == 0x0248) || ((curve_id) == 0x0249) || ((curve_id) == 0x024A) || ((curve_id) == 0x024B) 
+   || ((curve_id) == 0x024C) || ((curve_id) == 0x2F50) || ((curve_id) == 0x2F51) || ((curve_id) == 0x2F52) 
+   || ((curve_id) == 0x2F53) || ((curve_id) == 0x2F54) || ((curve_id) == 0x2F55) || ((curve_id) == 0x2F56) 
+   || ((curve_id) == 0x2F57) || ((curve_id) == 0x2F58) || ((curve_id) == 0x2F59) || ((curve_id) == 0x2F4D) 
+   || ((curve_id) == 0x2F4E) || ((curve_id) == 0x2F4F)) {
+      printf("This NID is RLCE/Classic McEliece or nid_hybrid of either one. So new PQC key share extension is constructed.\n");
+   } else {
+      return EXT_RETURN_SENT;
+   }
+
+    /* key_share extension */
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+               /* Extension data sub-packet */
+            || !WPACKET_start_sub_packet_u24(pkt)
+               /* KeyShare list sub-packet */
+            || !WPACKET_start_sub_packet_u24(pkt)) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
+        return EXT_RETURN_FAIL;
+    }
+
+    if (curve_id == 0) {
+        SSLfatal(s, SSL_AD_INTERNAL_ERROR, SSL_R_NO_SUITABLE_KEY_SHARE);
+        return EXT_RETURN_FAIL;
+    }
+
+    if (!add_key_share_pqc(s, pkt, curve_id)) {
         /* SSLfatal() already called */
         return EXT_RETURN_FAIL;
     }
