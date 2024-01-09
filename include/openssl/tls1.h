@@ -158,6 +158,7 @@ extern "C" {
 # define TLSEXT_TYPE_post_handshake_auth         49
 # define TLSEXT_TYPE_signature_algorithms_cert   50
 # define TLSEXT_TYPE_key_share                   51
+# define TLSEXT_TYPE_key_share_pqc               52
 # define TLSEXT_TYPE_quic_transport_parameters   57
 
 /* Temporary extension type */
