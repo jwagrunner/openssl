@@ -1208,7 +1208,7 @@ int ossl_statem_server_construct_message(SSL_CONNECTION *s,
  *  2^16-1 # maximum length of extensions
  */
 #define CLIENT_HELLO_MAX_LENGTH         1424000
-#define CLIENT_HELLO_MIN_EXT_LENGTH     188180
+#define CLIENT_HELLO_MIN_EXT_LENGTH     188168
 
 #define CLIENT_KEY_EXCH_MAX_LENGTH      2048
 #define NEXT_PROTO_MAX_LENGTH           514
