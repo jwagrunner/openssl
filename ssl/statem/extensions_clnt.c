@@ -829,7 +829,7 @@ EXT_RETURN tls_construct_ctos_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
    }
 
     /* key_share extension */
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share_pqc)
                /* Extension data sub-packet */
             || !WPACKET_start_sub_packet_u24(pkt)
                /* KeyShare list sub-packet */
