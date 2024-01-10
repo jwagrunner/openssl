@@ -746,7 +746,7 @@ int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
         return 0;
     }
 
-    if (!PACKET_as_length_prefixed_2(pkt, &key_share_list)) {
+    if (!PACKET_as_length_prefixed_3(pkt, &key_share_list)) {
         SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
         return 0;
     }
@@ -778,7 +778,7 @@ int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
 
     while (PACKET_remaining(&key_share_list) > 0) {
         if (!PACKET_get_net_2(&key_share_list, &group_id)
-                || !PACKET_get_length_prefixed_2(&key_share_list, &encoded_pt)
+                || !PACKET_get_length_prefixed_3(&key_share_list, &encoded_pt)
                 || PACKET_remaining(&encoded_pt) == 0) {
             SSLfatal(s, SSL_AD_DECODE_ERROR, SSL_R_LENGTH_MISMATCH);
             return 0;
