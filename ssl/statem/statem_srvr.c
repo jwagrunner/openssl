@@ -1646,6 +1646,7 @@ MSG_PROCESS_RETURN tls_process_client_hello(SSL_CONNECTION *s, PACKET *pkt)
         if (PACKET_remaining(pkt) == 0) {
             PACKET_null_init(&clienthello->extensions);
         } else {
+          printf("At this point of the tls_process_client_hello function, the PACKET size remaining is %zu\n", pkt->remaining);
           if ((pkt->remaining) < CLIENT_HELLO_MIN_EXT_LENGTH) {
             if (!PACKET_get_length_prefixed_2(pkt, &clienthello->extensions)
                     || PACKET_remaining(pkt) != 0) {
