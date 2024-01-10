@@ -1941,7 +1941,7 @@ EXT_RETURN tls_construct_stoc_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
             /* Original key_share was acceptable so don't ask for another one */
             return EXT_RETURN_NOT_SENT;
         }
-        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+        if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share_pqc)
                 || !WPACKET_start_sub_packet_u16(pkt)
                 || !WPACKET_put_bytes_u16(pkt, s->s3.group_id)
                 || !WPACKET_close(pkt)) {
@@ -1971,7 +1971,7 @@ EXT_RETURN tls_construct_stoc_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
         return EXT_RETURN_NOT_SENT;
     }
 
-    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share)
+    if (!WPACKET_put_bytes_u16(pkt, TLSEXT_TYPE_key_share_pqc)
             || !WPACKET_start_sub_packet_u16(pkt)
             || !WPACKET_put_bytes_u16(pkt, s->s3.group_id)) {
         SSLfatal(s, SSL_AD_INTERNAL_ERROR, ERR_R_INTERNAL_ERROR);
