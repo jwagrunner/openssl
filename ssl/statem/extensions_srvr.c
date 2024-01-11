@@ -813,13 +813,13 @@ int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
             return 0;
         }
-
+        printf("Executing tls_parse_ctos_key_share_pqc, where the group_id at this point 1 is %x\n", group_id);
         /* Check if this share is in supported_groups sent from client */
         if (!check_in_list(s, group_id, clntgroups, clnt_num_groups, 0)) {
             SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER, SSL_R_BAD_KEY_SHARE);
             return 0;
         }
-
+        printf("Executing tls_parse_ctos_key_share_pqc, where the group_id at this point 2 is %x\n", group_id);
         /* Check if this share is for a group we can use */
         if (!check_in_list(s, group_id, srvrgroups, srvr_num_groups, 1)
                 || !tls_group_allowed(s, group_id, SSL_SECOP_CURVE_SUPPORTED)
@@ -832,7 +832,7 @@ int tls_parse_ctos_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
             /* Share not suitable */
             continue;
         }
-
+        printf("Executing tls_parse_ctos_key_share_pqc, where the group_id at this point 3 is %x\n", group_id);
         s->s3.group_id = group_id;
         /* Cache the selected group ID in the SSL_SESSION */
         s->session->kex_group = group_id;
