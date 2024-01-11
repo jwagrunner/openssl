@@ -1636,7 +1636,6 @@ static int final_key_share_pqc(SSL_CONNECTION *s, unsigned int context, int sent
    } else {
 	    return 1;
     }
-#if !defined(OPENSSL_NO_TLS1_3)
     if (!SSL_CONNECTION_IS_TLS13(s))
         return 1;
 
