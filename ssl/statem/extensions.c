@@ -1450,6 +1450,7 @@ static int final_sig_algs(SSL_CONNECTION *s, unsigned int context, int sent)
 
 static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
 {
+  #if !defined(OPENSSL_NO_TLS1_3)
   printf("Executing final_key_share, where the group_id at this point is %x\n", s->s3.group_id);
   if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
    || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
@@ -1460,7 +1461,6 @@ static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
    || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
 	    return 1;
    }
-#if !defined(OPENSSL_NO_TLS1_3)
     if (!SSL_CONNECTION_IS_TLS13(s))
         return 1;
 
@@ -1624,6 +1624,7 @@ static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
 
 static int final_key_share_pqc(SSL_CONNECTION *s, unsigned int context, int sent)
 {
+  #if !defined(OPENSSL_NO_TLS1_3)
   if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
    || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
    || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
