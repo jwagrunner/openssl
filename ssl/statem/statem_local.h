@@ -260,6 +260,9 @@ __owur int extension_is_relevant(SSL_CONNECTION *s, unsigned int extctx,
 __owur int tls_collect_extensions(SSL_CONNECTION *s, PACKET *packet,
                                   unsigned int context,
                                   RAW_EXTENSION **res, size_t *len, int init);
+__owur int tls_collect_extensions_serverhello_rlce(SSL_CONNECTION *s, PACKET *packet,
+                                  unsigned int context,
+                                  RAW_EXTENSION **res, size_t *len, int init);
 __owur int tls_parse_extension(SSL_CONNECTION *s, TLSEXT_INDEX idx, int context,
                                RAW_EXTENSION *exts,  X509 *x, size_t chainidx);
 __owur int tls_parse_all_extensions(SSL_CONNECTION *s, int context,
