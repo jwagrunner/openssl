@@ -1586,7 +1586,7 @@ if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.grou
     }
 }
     if (!hrr) {
-        if (!tls_collect_extensions(s, &extpkt,
+        if (!tls_collect_extensions_serverhello_rlce(s, &extpkt,
                                     SSL_EXT_TLS1_2_SERVER_HELLO
                                     | SSL_EXT_TLS1_3_SERVER_HELLO,
                                     &extensions, NULL, 1)) {
@@ -2832,7 +2832,7 @@ MSG_PROCESS_RETURN tls_process_new_session_ticket(SSL_CONNECTION *s,
             goto err;
         }
 
-        if (!tls_collect_extensions(s, &extpkt,
+        if (!tls_collect_extensions_serverhello_rlce(s, &extpkt,
                                     SSL_EXT_TLS1_3_NEW_SESSION_TICKET, &exts,
                                     NULL, 1)
                 || !tls_parse_all_extensions(s,
@@ -4092,7 +4092,7 @@ if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.grou
         goto err;
     }
 }
-    if (!tls_collect_extensions(s, &extensions,
+    if (!tls_collect_extensions_serverhello_rlce(s, &extensions,
                                 SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS, &rawexts,
                                 NULL, 1)
             || !tls_parse_all_extensions(s, SSL_EXT_TLS1_3_ENCRYPTED_EXTENSIONS,
