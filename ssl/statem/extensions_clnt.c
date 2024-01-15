@@ -743,13 +743,10 @@ EXT_RETURN tls_construct_ctos_key_share(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 
-    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0239)
-   || ((curve_id) == 0x0244) || ((curve_id) == 0x0245) || ((curve_id) == 0x0246) || ((curve_id) == 0x0247) 
+    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0235)
+   || ((curve_id) == 0x0236) || ((curve_id) == 0x0237) || ((curve_id) == 0x0239) || ((curve_id) == 0x0247) 
    || ((curve_id) == 0x0248) || ((curve_id) == 0x0249) || ((curve_id) == 0x024A) || ((curve_id) == 0x024B) 
-   || ((curve_id) == 0x024C) || ((curve_id) == 0x2F50) || ((curve_id) == 0x2F51) || ((curve_id) == 0x2F52) 
-   || ((curve_id) == 0x2F53) || ((curve_id) == 0x2F54) || ((curve_id) == 0x2F55) || ((curve_id) == 0x2F56) 
-   || ((curve_id) == 0x2F57) || ((curve_id) == 0x2F58) || ((curve_id) == 0x2F59) || ((curve_id) == 0x2F4D) 
-   || ((curve_id) == 0x2F4E) || ((curve_id) == 0x2F4F)) {
+   || ((curve_id) == 0x024C)) {
       return EXT_RETURN_SENT;
    } else {
       printf("This is neither RLCE nor Classic McEliece, so a regular key share extension is constructed.\n");
@@ -816,14 +813,11 @@ EXT_RETURN tls_construct_ctos_key_share_pqc(SSL_CONNECTION *s, WPACKET *pkt,
         }
     }
 
-    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0239)
-   || ((curve_id) == 0x0244) || ((curve_id) == 0x0245) || ((curve_id) == 0x0246) || ((curve_id) == 0x0247) 
+    if (((curve_id) == 0x024D) || ((curve_id) == 0x024E) || ((curve_id) == 0x024F) || ((curve_id) == 0x0235)
+   || ((curve_id) == 0x0236) || ((curve_id) == 0x0237) || ((curve_id) == 0x0239) || ((curve_id) == 0x0247) 
    || ((curve_id) == 0x0248) || ((curve_id) == 0x0249) || ((curve_id) == 0x024A) || ((curve_id) == 0x024B) 
-   || ((curve_id) == 0x024C) || ((curve_id) == 0x2F50) || ((curve_id) == 0x2F51) || ((curve_id) == 0x2F52) 
-   || ((curve_id) == 0x2F53) || ((curve_id) == 0x2F54) || ((curve_id) == 0x2F55) || ((curve_id) == 0x2F56) 
-   || ((curve_id) == 0x2F57) || ((curve_id) == 0x2F58) || ((curve_id) == 0x2F59) || ((curve_id) == 0x2F4D) 
-   || ((curve_id) == 0x2F4E) || ((curve_id) == 0x2F4F)) {
-      printf("This NID is RLCE/Classic McEliece or nid_hybrid of either one. So new PQC key share extension is constructed.\n");
+   || ((curve_id) == 0x024C)) {
+      printf("This NID is RLCE or Classic McEliece. So new PQC key share extension is constructed.\n");
    } else {
       return EXT_RETURN_SENT;
    }
@@ -1911,16 +1905,13 @@ int tls_parse_stoc_key_share(SSL_CONNECTION *s, PACKET *pkt,
                              size_t chainidx)
 {
 #ifndef OPENSSL_NO_TLS1_3
-    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
-   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0235)
+   || ((s->s3.group_id) == 0x0236) || ((s->s3.group_id) == 0x0237) || ((s->s3.group_id) == 0x0239) || ((s->s3.group_id) == 0x0247) 
    || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
-   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
-   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
-   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+   || ((s->s3.group_id) == 0x024C)) {
        return EXT_RETURN_SENT; 
     } else {
-       printf("tls_parse_stoc_key_share will now execute since this is not a Classic McEliece/RLCE (nor a nid_hybrid of either one) key exchange algorithm.\n");
+       printf("tls_parse_stoc_key_share will now execute since this is not a Classic McEliece or RLCE key exchange algorithm.\n");
     }
     unsigned int group_id;
     PACKET encoded_pt;
@@ -2062,14 +2053,11 @@ int tls_parse_stoc_key_share_pqc(SSL_CONNECTION *s, PACKET *pkt,
                              size_t chainidx)
 {
 #ifndef OPENSSL_NO_TLS1_3
-    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
-   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+    if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0235)
+   || ((s->s3.group_id) == 0x0236) || ((s->s3.group_id) == 0x0237) || ((s->s3.group_id) == 0x0239) || ((s->s3.group_id) == 0x0247) 
    || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
-   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
-   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
-   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
-       printf("tls_parse_stoc_key_share_pqc will now execute since this is a Classic McEliece/RLCE (or a nid_hybrid of either one) key exchange algorithm.\n");
+   || ((s->s3.group_id) == 0x024C)) {
+       printf("tls_parse_stoc_key_share_pqc will now execute since this is a Classic McEliece or RLCE key exchange algorithm.\n");
     } else {
        return EXT_RETURN_SENT; 
     }
