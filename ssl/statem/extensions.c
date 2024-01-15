@@ -1574,13 +1574,10 @@ static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
 {
   #if !defined(OPENSSL_NO_TLS1_3)
   printf("Executing final_key_share, where the group_id at this point is %x\n", s->s3.group_id);
-  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
-   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0235)
+   || ((s->s3.group_id) == 0x0236) || ((s->s3.group_id) == 0x0237) || ((s->s3.group_id) == 0x0239) || ((s->s3.group_id) == 0x0247) 
    || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
-   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
-   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
-   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+   || ((s->s3.group_id) == 0x024C)) {
 	    return 1;
    }
     if (!SSL_CONNECTION_IS_TLS13(s))
@@ -1747,13 +1744,10 @@ static int final_key_share(SSL_CONNECTION *s, unsigned int context, int sent)
 static int final_key_share_pqc(SSL_CONNECTION *s, unsigned int context, int sent)
 {
   #if !defined(OPENSSL_NO_TLS1_3)
-  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0239)
-   || ((s->s3.group_id) == 0x0244) || ((s->s3.group_id) == 0x0245) || ((s->s3.group_id) == 0x0246) || ((s->s3.group_id) == 0x0247) 
+  if (((s->s3.group_id) == 0x024D) || ((s->s3.group_id) == 0x024E) || ((s->s3.group_id) == 0x024F) || ((s->s3.group_id) == 0x0235)
+   || ((s->s3.group_id) == 0x0236) || ((s->s3.group_id) == 0x0237) || ((s->s3.group_id) == 0x0239) || ((s->s3.group_id) == 0x0247) 
    || ((s->s3.group_id) == 0x0248) || ((s->s3.group_id) == 0x0249) || ((s->s3.group_id) == 0x024A) || ((s->s3.group_id) == 0x024B) 
-   || ((s->s3.group_id) == 0x024C) || ((s->s3.group_id) == 0x2F50) || ((s->s3.group_id) == 0x2F51) || ((s->s3.group_id) == 0x2F52) 
-   || ((s->s3.group_id) == 0x2F53) || ((s->s3.group_id) == 0x2F54) || ((s->s3.group_id) == 0x2F55) || ((s->s3.group_id) == 0x2F56) 
-   || ((s->s3.group_id) == 0x2F57) || ((s->s3.group_id) == 0x2F58) || ((s->s3.group_id) == 0x2F59) || ((s->s3.group_id) == 0x2F4D) 
-   || ((s->s3.group_id) == 0x2F4E) || ((s->s3.group_id) == 0x2F4F)) {
+   || ((s->s3.group_id) == 0x024C)) {
 	     printf("              Calling final_key_share_pqc\n");
    } else {
 	    return 1;
